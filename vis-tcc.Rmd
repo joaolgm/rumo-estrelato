@@ -1,0 +1,463 @@
+---
+title: "Rumo ao estrelato"
+author: "João Menezes"
+date: "21/08/2021"
+output:
+  rmdformats::readthedown:
+    highlight: tango
+    toc: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(lubridate)
+library(plotly)
+library(viridis)
+library(ggbeeswarm)
+library(forcats)
+library(reactable)
+theme_set(theme_bw())
+colors <- c("#765898", "#52d053")
+highlight_colors <- c("#765898", "#EEEEEE")
+```
+# Uma análise com estatísticas de jogadores recém ingressados na NBA
+
+Há tempos que o nível do basquete jogado na NBA é considerado o mais alto do mundo. Essa afirmação se consolida ainda mais quando se repara na grande quantidade de jogadores que disputam uma vaga anualmente no DRAFT, evento que dá acesso à NBA para jovens jogadores vindos do basquete universitário. Entretanto, mesmo com o nível tão elevado, como podemos saber quais desses jogadores selecionados anualmente vão, de fato, se adaptar à NBA e escrever seu nome na história da liga?
+
+Aqui vamos olhar mais a fundo como foram os dois anos iniciais de jogadores veteranos, que provaram excelência em sua posição, e de novatos, que buscam garantir seu espaço e, quem sabe, superar os atuais líderes. Foram selecionados alguns jogadores por posição de jogo, sendo elas: armador, ala-armador, ala, ala-pivô e pivô. Para cada posição foram selecionadas grupos das principais estatísticas para medir o desempenho naquela função do jogo, sendo elas: porcentagem de arremessos convertidos(FG_PCT), pontos(PTS), rebotes(REB), rebotes ofensivos(OREB), lances livres tentados(FTA), porcentagem de lances livres convertidos(FT_PCT), assistências(AST), faltas cometidas(PF), roubos de bola(STL), percas de posse de bola(TOV), porcentagem de arremessos de 3 pontos convertidos(FG3_PCT) e bloqueios(BLK).
+
+Para facilitar a sua visualização sobre os dados, todos os gráficos aqui dispostos mostram quantidades em [z-score](https://en.wikipedia.org/wiki/Standard_score), cálculo feito para demonstrar o quão acima ou abaixo da média está aquele ponto observado, sendo o valor zero a média do grupo observado, valores positivos indicam que o ponto está acima da média do grupo e valores negativos indicam que está abaixo da média.
+
+Para cada posição abordada mostrarei uma tabela com os dados utilizados para criação da visualização para aquela função e em seguida a visualização criada.
+
+---
+
+## Armadores
+
+```{r echo=FALSE}
+data_pg = read_csv(here::here('./data/data_pg.csv'), show_col_types = FALSE)
+reactable(data_pg %>%
+            mutate(across(where(is.numeric), ~ round(., 1))), 
+          striped = TRUE, searchable = TRUE)
+
+data_pg_sd = data_pg %>%
+  mutate(sdFG_PCT = sd(data_pg$FG_PCT)) %>%
+  mutate(sdAST = sd(data_pg$AST)) %>%
+  mutate(sdSTL = sd(data_pg$STL)) %>%
+  mutate(sdTOV = sd(data_pg$TOV)) %>%
+  mutate(mFG_PCT = mean(data_pg$FG_PCT)) %>%
+  mutate(mAST = mean(data_pg$AST)) %>%
+  mutate(mSTL = mean(data_pg$STL)) %>%
+  mutate(mTOV = mean(data_pg$TOV))
+
+zscore_pg = data_pg_sd %>%
+  rowwise() %>%
+  mutate(zFG_PCT = (FG_PCT - mFG_PCT)/sdFG_PCT) %>%
+  mutate(zAST = (AST - mAST)/sdAST) %>%
+  mutate(zSTL = (STL - mSTL)/sdSTL) %>%
+  mutate(zTOV = (TOV - mTOV)/sdTOV) %>%
+  select(zFG_PCT, zAST, zSTL, zTOV, Jogador, Rookie) %>%
+  rename(`Arremessos Convertidos`=zFG_PCT, `Assistências`=zAST, `Roubo de Bola`=zSTL, `Perca da Posse de Bola`=zTOV)
+
+vis_pg = zscore_pg %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, `Assistências`, `Roubo de Bola`, `Perca da Posse de Bola`), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Roubo de Bola", "Perca da Posse de Bola", "Assistências", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, color = Rookie, label = Jogador)) +
+  geom_quasirandom(width = 0.1, alpha = 0.7, size = 5) +
+  scale_color_manual(values = colors) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Armador",
+    colour = "Experiência",
+    size = NULL
+   ) +
+  coord_flip()
+
+ggplotly(vis_pg, tooltip = "label")
+ggsave(file = 'armador.png', width=5, height=3)
+
+```
+Jogadores nessa posição têm o papel de organizar as jogadas ofensivas, criando oportunidades para seus colegas de equipe pontuarem, além de dar o primeiro combate na defesa marcando o armador adversário. Sabendo disso, é possível ver que os novatos estão acima da média de assistências, porém também em percas de posse de bola, enquanto os veteranos roubam mais bolas. Dada sua função no jogo, a dualidade entre fazer muitas assistências e ter um número elevado de percas de bola comumente ocorre entre os armadores, porém o volume de assistências dos novatos tem se destacado quando comparado com veteranos. Entretanto, são poucos novatos que despontam na área defensiva, os roubos de bola são dominados por veteranos. Temos um caso fora da curva na porcentagem de arremessos convertidos, enquanto a média do grupo de jogadores ficou em torno de 44% de aproveitamento, o novato Ben Simmons obteve um aproveitamento de 57% de seus arremessos, esse número deve-se também a sua altura acima da média dos armadores, medindo 211cm, o que facilita os arremessos mais próximos à cesta. Além dele, o novato Trae Young teve cerca de 3 assistência a mais que a média do grupo, fundamento esse muito importante para a função do armador.
+
+## Ala-armadores
+
+```{r echo=FALSE}
+data_sg = read_csv(here::here('./data/data_sg.csv'), show_col_types = FALSE)
+reactable(data_sg %>%
+            mutate(across(where(is.numeric), ~ round(., 1))), 
+          striped = TRUE, searchable = TRUE)
+
+data_sg_sd = data_sg %>%
+  mutate(sdFG_PCT = sd(data_sg$FG_PCT)) %>%
+  mutate(sdFG3_PCT = sd(data_sg$FG3_PCT)) %>%
+  mutate(sdPTS = sd(data_sg$PTS)) %>%
+  mutate(sdSTL = sd(data_sg$STL)) %>%
+  mutate(mFG_PCT = mean(data_sg$FG_PCT)) %>%
+  mutate(mFG3_PCT = mean(data_sg$FG3_PCT)) %>%
+  mutate(mPTS = mean(data_sg$PTS)) %>%
+  mutate(mSTL = mean(data_sg$STL))
+
+zscore_sg = data_sg_sd %>%
+  rowwise() %>%
+  mutate(zFG_PCT = (FG_PCT - mFG_PCT)/sdFG_PCT) %>%
+  mutate(zFG3_PCT = (FG3_PCT - mFG3_PCT)/sdFG3_PCT) %>%
+  mutate(zPTS = (PTS - mPTS)/sdPTS) %>%
+  mutate(zSTL = (STL - mSTL)/sdSTL) %>%
+  select(zFG_PCT, zFG3_PCT, zPTS, zSTL, Jogador, Rookie) %>%
+  rename(`Arremessos Convertidos`=zFG_PCT, `Arremessos de 3 Convertidos`=zFG3_PCT, Pontos=zPTS, `Roubo de Bola`=zSTL)
+
+vis_sg = zscore_sg %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, `Arremessos de 3 Convertidos`, Pontos, `Roubo de Bola`), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Roubo de Bola", "Pontos", "Arremessos de 3 Convertidos", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, color = Rookie, label = Jogador)) +
+  geom_quasirandom(width = 0.1, alpha = 0.7, size = 5) +
+  scale_color_manual(values = colors) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Ala-Armador",
+    colour = "Experiência",
+    size = NULL
+   ) +
+  coord_flip()
+
+ggplotly(vis_sg, tooltip = "label")
+ggsave(file = 'ala-armador.png', width=5, height=3)
+```
+O objetivo principal de um ala-armador é marcar pontos para seu time e roubar a bola na defesa. Apesar de balanceado, de maneira geral, os veteranos desta posição costumam pontuar mais que os novatos. Entretanto, a maioria dos novatos desta posição tem a necessidade de conseguir um bom aproveitamento nas bolas de 3 pontos, fundamento muito importante no basquete atual. Temos um jogador em destaque nesse gráfico, o veterano Dwyane Wade. 
+```{r echo=FALSE}
+vis_wade = zscore_sg %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, `Arremessos de 3 Convertidos`, Pontos, `Roubo de Bola`), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Roubo de Bola", "Pontos", "Arremessos de 3 Convertidos", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, colour = ifelse(Jogador == "Dwyane Wade", "Dwyane Wade", "Jogadores"), label = Jogador)) +
+  geom_quasirandom(width = 0.1, alpha = 0.7, size = 5) +
+  scale_color_manual(values = c("#52d053", "#EEEEEE")) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Dwyane Wade",
+    colour = NULL,
+    size = NULL
+   ) +
+  coord_flip()
+
+ggplotly(vis_wade, tooltip = "label")
+ggsave(file = 'wade.png', width=5, height=3)
+```
+Apesar de não utilizar o fundamento da bola de 3 pontos em seu jogo, ele lidera a média de pontos e divide a liderança na porcentagem de aproveitamento de arremessos, além de liderar absoluto os roubos de bola. Isso mostra como o estilo de jogo muda com o passar do tempo, tornando assim diferentes habilidades de um jogador úteis.
+
+## Alas
+
+```{r echo=FALSE}
+data_sf = read_csv(here::here('./data/data_sf.csv'), show_col_types = FALSE)
+reactable(data_sf %>%
+            mutate(across(where(is.numeric), ~ round(., 1))), 
+          striped = TRUE, searchable = TRUE)
+
+data_sf_sd = data_sf %>%
+  mutate(sdFG_PCT = sd(data_sf$FG_PCT)) %>%
+  mutate(sdFTA = sd(data_sf$FTA)) %>%
+  mutate(sdFT_PCT = sd(data_sf$FT_PCT)) %>%
+  mutate(sdPTS = sd(data_sf$PTS)) %>%
+  mutate(sdREB = sd(data_sf$REB)) %>%
+  mutate(mFG_PCT = mean(data_sf$FG_PCT)) %>%
+  mutate(mFTA = mean(data_sf$FTA)) %>%
+  mutate(mFT_PCT = mean(data_sf$FT_PCT)) %>%
+  mutate(mPTS = mean(data_sf$PTS)) %>%
+  mutate(mREB = mean(data_sf$REB))
+
+zscore_sf = data_sf_sd %>%
+  rowwise() %>%
+  mutate(zFG_PCT = (FG_PCT - mFG_PCT)/sdFG_PCT) %>%
+  mutate(zFTA = (FTA - mFTA)/sdFTA) %>%
+  mutate(zFT_PCT = (FT_PCT - mFT_PCT)/sdFT_PCT) %>%
+  mutate(zPTS = (PTS - mPTS)/sdPTS) %>%
+  mutate(zREB = (REB - mREB)/sdREB) %>%
+  select(zFG_PCT, zFTA, zFT_PCT, zPTS, zREB, Jogador, Rookie) %>%
+  rename(`Arremessos Convertidos`=zFG_PCT, `Lances Livres Arremessados`=zFTA, `Lances Livres Convertidos`=zFT_PCT, Pontos=zPTS, Rebotes=zREB)
+
+vis_sf = zscore_sf %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, `Lances Livres Arremessados`, `Lances Livres Convertidos`, Pontos, Rebotes), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Rebotes", "Pontos", "Lances Livres Convertidos", "Lances Livres Arremessados", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, color = Rookie, label = Jogador)) +
+  geom_quasirandom(width = 0.1, alpha = 0.7, size = 5) +
+  scale_color_manual(values = colors) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Ala",
+    colour = "Experiência",
+    size = NULL
+   ) +
+  coord_flip()
+
+ggplotly(vis_sf, tooltip = "label")
+ggsave(file = 'ala.png', width=5, height=3)
+```
+O ala normalmente é o jogador mais completo do time, sendo capaz de infiltrar no garrafão, além de ter a responsabilidade de fechar o contra-ataque juntamente com o ala-armador. Para os alas, que tem grande potencial de infiltrações e arremessos de média distância precisos, decidi que a quantidade de lances livres arremessados e porcentagem de acerto deles é importante para um ala.
+```{r echo=FALSE}
+vis_infiltra = zscore_sf %>%
+  ggplot(aes(x = `Lances Livres Arremessados`, y = `Lances Livres Convertidos`, color = Rookie, label = Jogador)) +
+  geom_point(size = 5, color="#765898") +
+  labs(
+    title = "Infiltrações",
+    colour = "Experiência",
+    size = NULL
+   )
+
+ggplotly(vis_infiltra, tooltip = "label")
+ggsave(file = 'infiltracao.png', width=5, height=3)
+```
+É perceptível que os alas que mais usam da infiltração, o que resulta em mais lances livres, também são os que tem maiores porcentagem de acerto. Todos os jogadores que arremessam mais lances livres que a média, também acertam mais que a média. A importância de um jogador dominar o fundamento da infiltração é alta, esse lance pode gerar pontos fáceis para seu time, além de acumular faltas para o time adversário.
+```{r echo=FALSE}
+vis_durant = zscore_sf %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, `Lances Livres Arremessados`, `Lances Livres Convertidos`, Pontos, Rebotes), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Rebotes", "Pontos", "Lances Livres Convertidos", "Lances Livres Arremessados", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, colour = ifelse(Jogador == "Kevin Durant", "Kevin Durant", "Jogadores"), label = Jogador)) +
+  geom_quasirandom(width = 0.1, alpha = 0.7, size = 5) +
+  scale_color_manual(values = c("#EEEEEE", "#52d053")) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Kevin Durant",
+    colour = NULL,
+    size = NULL
+   ) +
+  coord_flip()
+
+ggplotly(vis_durant, tooltip = "label")
+ggsave(file = 'durant.png', width=5, height=3)
+```
+A vida para os alas novatos está difícil, os veteranos tem dominado todos os aspectos. Temos um pequeno destaque para o novato Michael Porter Jr. que lidera por pouco a porcentagem de aproveitamento de arremessos e rebotes. Entretanto, não há como não notar o quão acima da média estão Lebron James e Kevin Durant em todos os aspectos, dois dos principais jogadores ativos no momento.
+
+```{r echo=FALSE}
+data_sf_per_min = data_sf %>%
+  mutate(FG_PCT = FG_PCT/MIN) %>%
+  mutate(FTA = FTA/MIN) %>%
+  mutate(FT_PCT = FT_PCT/MIN) %>%
+  mutate(PTS = PTS/MIN) %>%
+  mutate(REB = REB/MIN)
+
+data_sf_sd_per_min = data_sf_per_min %>%
+  mutate(sdFG_PCT = sd(data_sf_per_min$FG_PCT)) %>%
+  mutate(sdFTA = sd(data_sf_per_min$FTA)) %>%
+  mutate(sdFT_PCT = sd(data_sf_per_min$FT_PCT)) %>%
+  mutate(sdPTS = sd(data_sf_per_min$PTS)) %>%
+  mutate(sdREB = sd(data_sf_per_min$REB)) %>%
+  mutate(mFG_PCT = mean(data_sf_per_min$FG_PCT)) %>%
+  mutate(mFTA = mean(data_sf_per_min$FTA)) %>%
+  mutate(mFT_PCT = mean(data_sf_per_min$FT_PCT)) %>%
+  mutate(mPTS = mean(data_sf_per_min$PTS)) %>%
+  mutate(mREB = mean(data_sf_per_min$REB))
+
+zscore_sf_per_min = data_sf_sd_per_min %>%
+  rowwise() %>%
+  mutate(zFG_PCT = (FG_PCT - mFG_PCT)/sdFG_PCT) %>%
+  mutate(zFTA = (FTA - mFTA)/sdFTA) %>%
+  mutate(zFT_PCT = (FT_PCT - mFT_PCT)/sdFT_PCT) %>%
+  mutate(zPTS = (PTS - mPTS)/sdPTS) %>%
+  mutate(zREB = (REB - mREB)/sdREB) %>%
+  select(zFG_PCT, zFTA, zFT_PCT, zPTS, zREB, Jogador, Rookie) %>%
+  rename(`Arremessos Convertidos`=zFG_PCT, `Lances Livres Arremessados`=zFTA, `Lances Livres Convertidos`=zFT_PCT, Pontos=zPTS, Rebotes=zREB)
+
+vis_osman = zscore_sf_per_min %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, `Lances Livres Arremessados`, `Lances Livres Convertidos`, Pontos, Rebotes), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Rebotes", "Pontos", "Lances Livres Convertidos", "Lances Livres Arremessados", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, colour = ifelse(Jogador == "Cedi Osman", "Cedi Osman", "Jogadores"), label = Jogador)) +
+  geom_quasirandom(width = 0.3, alpha = 0.7, size = 5, position = position_dodge(width = 5)) +
+  scale_color_manual(values = c("#765898", "#EEEEEE")) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Estatísticas por minuto jogado",
+    colour = NULL,
+    size = NULL
+   ) +
+  coord_flip() 
+
+ggplotly(vis_osman, tooltip = "label")
+ggsave(file = 'osman.png', width=5, height=3)
+```
+Apesar de louvável os números de Kevin Durant, também temos casos de jogadores abaixo da média para todos os fundamentos. O atleta Cedi Osman apareceu muito abaixo de todas as médias, sabe-se também que ele jogou cerca de metade do tempo que os outros jogadores nesse gráfico. Afim de obter uma comparação mais próxima desse caso com os demais jogadores, dividi cada fundamento pelo tempo jogado daquele atleta, obtendo assim médias de estatísticas por minuto jogado. Entretanto, ainda percebemos que o jogador Cedi Osman se manteve abaixo da média da amostra para todos os fundamentos.
+
+## Ala-pivôs
+
+```{r echo=FALSE}
+data_pf = read_csv(here::here('./data/data_pf.csv'), show_col_types = FALSE)
+reactable(data_pf %>%
+            mutate(across(where(is.numeric), ~ round(., 1))), 
+          striped = TRUE, searchable = TRUE)
+
+data_pf_sd = data_pf %>%
+  mutate(sdFG_PCT = sd(data_pf$FG_PCT)) %>%
+  mutate(sdFTA = sd(data_pf$FTA)) %>%
+  mutate(sdPTS = sd(data_pf$PTS)) %>%
+  mutate(sdREB = sd(data_pf$REB)) %>%
+  mutate(mFG_PCT = mean(data_pf$FG_PCT)) %>%
+  mutate(mFTA = mean(data_pf$FTA)) %>%
+  mutate(mPTS = mean(data_pf$PTS)) %>%
+  mutate(mREB = mean(data_pf$REB))
+
+zscore_pf = data_pf_sd %>%
+  rowwise() %>%
+  mutate(zFG_PCT = (FG_PCT - mFG_PCT)/sdFG_PCT) %>%
+  mutate(zFTA = (FTA - mFTA)/sdFTA) %>%
+  mutate(zPTS = (PTS - mPTS)/sdPTS) %>%
+  mutate(zREB = (REB - mREB)/sdREB) %>%
+  select(zFG_PCT, zFTA, zPTS, zREB, Jogador, Rookie) %>%
+  rename(`Arremessos Convertidos`=zFG_PCT, `Lances Livres Arremessados`=zFTA, Pontos=zPTS, Rebotes=zREB)
+
+vis_pf = zscore_pf %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, `Lances Livres Arremessados`, Pontos, Rebotes), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Rebotes", "Pontos", "Lances Livres Arremessados", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, color = Rookie, label = Jogador)) +
+  geom_quasirandom(width = 0.1, alpha = 0.7, size = 5) +
+  scale_color_manual(values = colors) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Ala-Pivô",
+    colour = "Experiência",
+    size = NULL
+   ) +
+  coord_flip()
+
+ggplotly(vis_pf, tooltip = "label")
+ggsave(file = 'ala-pivo.png', width=5, height=3)
+```
+A posição envolve uma variedade de responsabilidades, e uma das mais importantes é o rebote. Geralmente são jogadores de certa força física e que recebem algum contato físico, o que torna importante a quantidade de lances livres arremessados por ele. Em todos os aspectos observados os veteranos atigiram médias mais altas, porém há um novato que lidera a maioria dos fundamentos.
+```{r echo=FALSE}
+vis_zion = zscore_pf %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, `Lances Livres Arremessados`, Pontos, Rebotes), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Rebotes", "Pontos", "Lances Livres Arremessados", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, colour = ifelse(Jogador == "Zion Williamson", "Zion Williamson", "Jogadores"), label = Jogador)) +
+  geom_quasirandom(width = 0.3, alpha = 0.7, size = 5, position = position_dodge(width = 5)) +
+  scale_color_manual(values = c("#EEEEEE", "#765898")) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Zion Williamson",
+    colour = NULL,
+    size = NULL
+   ) +
+  coord_flip()
+
+ggplotly(vis_zion, tooltip = "label")
+ggsave(file = 'zion.png', width=5, height=3)
+```
+Zion Williamson é hoje hoje uma das grandes promessas na posição, com muita explosão física, o que o torna muito difícil de ser marcado, consegue criar cerca de 4 lances livres a mais que a média da posição, obtendo média de 8 de lances livres por partida, além de liderar porcentagem de aproveitamento de arremessos e pontos. Há também uma liderança absoluta nos rebotes por parte do veterano Kevin Love, com mais de 6 rebotes que a média, ele conseguiu ter média de 13 rebotes por partida.
+
+## Pivôs
+
+```{r echo=FALSE}
+data_c = read_csv(here::here('./data/data_c.csv'), show_col_types = FALSE)
+reactable(data_c %>%
+            mutate(across(where(is.numeric), ~ round(., 1))), 
+          striped = TRUE, searchable = TRUE)
+
+data_c_sd = data_c %>%
+  mutate(sdFG_PCT = sd(data_c$FG_PCT)) %>%
+  mutate(sdBLK = sd(data_c$BLK)) %>%
+  mutate(sdPF = sd(data_c$PF)) %>%
+  mutate(sdOREB = sd(data_c$OREB)) %>%
+  mutate(sdREB = sd(data_c$REB)) %>%
+  mutate(mFG_PCT = mean(data_c$FG_PCT)) %>%
+  mutate(mBLK = mean(data_c$BLK)) %>%
+  mutate(mPF = mean(data_c$PF)) %>%
+  mutate(mOREB = mean(data_c$OREB)) %>%
+  mutate(mREB = mean(data_c$REB))
+
+zscore_c = data_c_sd %>%
+  rowwise() %>%
+  mutate(zFG_PCT = (FG_PCT - mFG_PCT)/sdFG_PCT) %>%
+  mutate(zBLK = (BLK - mBLK)/sdBLK) %>%
+  mutate(zPF = (PF - mPF)/sdPF) %>%
+  mutate(zOREB = (OREB - mOREB)/sdOREB) %>%
+  mutate(zREB = (REB - mREB)/sdREB) %>%
+  select(zFG_PCT, zBLK, zOREB, zREB, zPF, Jogador, Rookie) %>%
+  rename(`Arremessos Convertidos`=zFG_PCT, Bloqueios=zBLK, `Rebotes Ofensivos`=zOREB, Rebotes=zREB, `Faltas Pessoais`=zPF)
+
+vis_c = zscore_c %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, Bloqueios, `Rebotes Ofensivos`, Rebotes, `Faltas Pessoais`), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Bloqueios", "Faltas Pessoais", "Rebotes Ofensivos", "Rebotes", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, color = Rookie, label = Jogador)) +
+  geom_quasirandom(width = 0.1, alpha = 0.7, size = 5) +
+  scale_color_manual(values = colors) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Pivô",
+    colour = "Experiência",
+    size = NULL
+   ) +
+  coord_flip()
+
+ggplotly(vis_c, tooltip = "label")
+ggsave(file = 'pivo.png', width=5, height=3)
+
+```
+Sua principal função é brigar pela posição onde possa receber (ataque) ou impedir (defesa) o passe. Lutar pelos rebotes é uma obrigação dos pivôs. Por ser a posição que mais força o contato físico, é também a que mais está propensa a fazer faltas, por isso a adição de faltas pessoais nesse gráfico. Faltas funcionam de maneira contrária aos outros fundamentos, quanto mais acima da média o jogador se encontra, pior para a eficiência dele nesta função. Nos fundamentos apresentados os veteranos levam uma leve vantagem, temos o novato Jarrett Allen bem acima da média da porcentagem de aproveitamento de arremessos e DeAndre Ayton disputando a liderança de rebotes ofensivos com mais veteranos. Entretanto, o veterano Rudy Gobert dominou no fundamento de bloqueio, obtendo média de 2.2 por partida, enquanto o grupo obteve média de 1.2 bloqueios por partida.
+
+```{r echo=FALSE}
+data_c_per_min = data_c %>%
+  mutate(FG_PCT = FG_PCT/MIN) %>%
+  mutate(BLK = BLK/MIN) %>%
+  mutate(PF = PF/MIN) %>%
+  mutate(OREB = OREB/MIN) %>%
+  mutate(REB = REB/MIN)
+
+data_c_sd_per_min = data_c_per_min %>%
+  mutate(sdFG_PCT = sd(data_c_per_min$FG_PCT)) %>%
+  mutate(sdBLK = sd(data_c_per_min$BLK)) %>%
+  mutate(sdPF = sd(data_c_per_min$PF)) %>%
+  mutate(sdOREB = sd(data_c_per_min$OREB)) %>%
+  mutate(sdREB = sd(data_c_per_min$REB)) %>%
+  mutate(mFG_PCT = mean(data_c_per_min$FG_PCT)) %>%
+  mutate(mBLK = mean(data_c_per_min$BLK)) %>%
+  mutate(mPF = mean(data_c_per_min$PF)) %>%
+  mutate(mOREB = mean(data_c_per_min$OREB)) %>%
+  mutate(mREB = mean(data_c_per_min$REB))
+
+zscore_c_per_min = data_c_sd_per_min %>%
+  rowwise() %>%
+  mutate(zFG_PCT = (FG_PCT - mFG_PCT)/sdFG_PCT) %>%
+  mutate(zBLK = (BLK - mBLK)/sdBLK) %>%
+  mutate(zPF = (PF - mPF)/sdPF) %>%
+  mutate(zOREB = (OREB - mOREB)/sdOREB) %>%
+  mutate(zREB = (REB - mREB)/sdREB) %>%
+  select(zFG_PCT, zBLK, zOREB, zREB, zPF, Jogador, Rookie) %>%
+  rename(`Arremessos Convertidos`=zFG_PCT, Bloqueios=zBLK, `Rebotes Ofensivos`=zOREB, Rebotes=zREB, `Faltas Pessoais`=zPF)
+
+vis_jaren = zscore_c_per_min %>%
+  pivot_longer(., cols = c(`Arremessos Convertidos`, Bloqueios, `Rebotes Ofensivos`, Rebotes, `Faltas Pessoais`), names_to = 'Var', values_to = 'stats') %>%
+  mutate(Var = fct_relevel(Var, "Bloqueios", "Faltas Pessoais", "Rebotes Ofensivos", "Rebotes", "Arremessos Convertidos")) %>%
+  ggplot(aes(x = Var, y = stats, colour = ifelse(Jogador == "Jaren Jackson Jr.", "Jaren Jackson Jr.", "Jogadores"), label = Jogador)) +
+  geom_quasirandom(width = 0.1, alpha = 0.7, size = 5) +
+  scale_color_manual(values = c("#765898", "#EEEEEE")) +
+  labs(
+    x = NULL,
+    y = NULL,
+    title = "Estatísticas por minuto jogado",
+    colour = NULL,
+    size = NULL
+   ) +
+  coord_flip() 
+
+ggplotly(vis_jaren, tooltip = "label")
+ggsave(file = 'jaren.png', width=5, height=3)
+```
+Assim como aconteceu para a seção de alas, também temos pivôs que estão muito abaixo da média e que jogaram, em média, menos minutos que o restante da amostra. Foi feito o mesmo cálculo de fundamento por minuto jogado e escolhido o jogador Jaren Jackson Jr., que aparece sempre bem abaixo da média em todas as estatísticas, exceto bloqueios. Como ocorreu com Cedi Osman, Jaren Jackson Jr. continuou bem abaixo das médias que ele já estava. Com exceção do fundamento faltas pessoais, que esteve acima da média, assim como antes, fundamento esse que escala inversamente, alto número de faltas é prejudicial ao time.
+
+---
+
+Todo jogador recém chegado na NBA tem o sonho de, ao fim de sua carreira, entrar no Hall da Fama e escrever seu nome na história do basquete. Porém, para que isso aconteça, é necessário demonstrar talento em quadra em seus primeiros anos. O draft é a grande chance para quem vem do basquete universitário e, por mais que o jogador demonstre domínio lá, a adaptação para a NBA pode não ser fácil. Com as análises vistas, percebemos dois novatos que se destacaram em suas funções, Trae Young superando número de assistências de grandes veteranos como Chris Paul e Russell Westbrook, e Zion Williamson dominando a maioria dos fundamentos de um ala-pivô, posição essa que conta com nomes de peso como Anthony Davis e Giannis Antetokounmpo. É conhecido que fatores externos, como lesões, podem dificultar a carreira de um atleta, porém esses números conquistados nos dois anos iniciais são importantíssimos para decidir se esses jogadores vão ter a chance de continuar jogando pela liga.
